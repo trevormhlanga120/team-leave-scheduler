@@ -1,15 +1,14 @@
 from datetime import date
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from .models import LeaveStatus
 
 
 class EmployeeOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     name: str
     team_id: int
-
-    class Config:
-        from_attributes = True
 
 
 class LeaveRequestCreate(BaseModel):
@@ -19,6 +18,8 @@ class LeaveRequestCreate(BaseModel):
 
 
 class LeaveRequestOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     employee_id: int
     employee_name: str
@@ -26,6 +27,3 @@ class LeaveRequestOut(BaseModel):
     start_date: date
     end_date: date
     status: LeaveStatus
-
-    class Config:
-        from_attributes = True

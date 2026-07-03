@@ -32,15 +32,25 @@ def overlaps(a_start: date, a_end: date, b_start: date, b_end: date) -> bool:
     return a_start <= b_end and b_start <= a_end
 
 
-def has_overlapping_approved_leave(db: Session, employee_id: int, start: date, end: date) -> bool:
-    approved = (
+def has_overlapping_approved_leave(
+    db: Session,
+    employee_id: int,
+    start: date,
+    end: date,
+    exclude_request_id: int | None = None,
+) -> bool:
+    query = (
         db.query(models.LeaveRequest)
         .filter(
             models.LeaveRequest.employee_id == employee_id,
             models.LeaveRequest.status == models.LeaveStatus.APPROVED,
         )
-        .all()
     )
+
+    if exclude_request_id is not None:
+        query = query.filter(models.LeaveRequest.id != exclude_request_id)
+
+    approved = query.all()
     return any(overlaps(start, end, r.start_date, r.end_date) for r in approved)
 
 
@@ -49,7 +59,13 @@ def team_leave_cap(team_size: int) -> int:
     return int(team_size * 0.3)
 
 
-def violates_team_cap(db: Session, employee_id: int, start: date, end: date) -> list[date]:
+def violates_team_cap(
+    db: Session,
+    employee_id: int,
+    start: date,
+    end: date,
+    exclude_request_id: int | None = None,
+) -> list[date]:
     """Returns the list of working days on which approving this request would
     push the team over its 30% cap. Empty list means the request is safe."""
     employee = db.query(models.Employee).filter(models.Employee.id == employee_id).first()
@@ -71,8 +87,11 @@ def violates_team_cap(db: Session, employee_id: int, start: date, end: date) -> 
                 models.LeaveRequest.start_date <= day,
                 models.LeaveRequest.end_date >= day,
             )
-            .count()
         )
+        if exclude_request_id is not None:
+            approved_on_day = approved_on_day.filter(models.LeaveRequest.id != exclude_request_id)
+
+        approved_on_day = approved_on_day.count()
         if approved_on_day + 1 > cap:
             breaching_days.append(day)
 

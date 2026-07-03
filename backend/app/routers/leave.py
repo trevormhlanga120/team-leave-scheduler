@@ -61,8 +61,24 @@ def approve_leave(request_id: int, db: Session = Depends(database.get_db)):
     if not leave_request:
         raise HTTPException(404, "Leave request not found")
 
+    if leave_request.status != models.LeaveStatus.PENDING:
+        raise HTTPException(409, "Only pending requests can be approved")
+
+    if rules.has_overlapping_approved_leave(
+        db,
+        leave_request.employee_id,
+        leave_request.start_date,
+        leave_request.end_date,
+        exclude_request_id=leave_request.id,
+    ):
+        raise HTTPException(409, "Request overlaps an existing approved leave for this employee")
+
     breaching_days = rules.violates_team_cap(
-        db, leave_request.employee_id, leave_request.start_date, leave_request.end_date
+        db,
+        leave_request.employee_id,
+        leave_request.start_date,
+        leave_request.end_date,
+        exclude_request_id=leave_request.id,
     )
     if breaching_days:
         raise HTTPException(
@@ -83,8 +99,10 @@ def reject_leave(request_id: int, db: Session = Depends(database.get_db)):
     if not leave_request:
         raise HTTPException(404, "Leave request not found")
 
+    if leave_request.status != models.LeaveStatus.PENDING:
+        raise HTTPException(409, "Only pending requests can be rejected")
+
     leave_request.status = models.LeaveStatus.REJECTED
     db.commit()
     db.refresh(leave_request)
     return _to_out(leave_request)
-
